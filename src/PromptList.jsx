@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { 
-  FileText, 
-  Star, 
-  MoreVertical, 
-  Edit, 
-  Copy, 
-  Trash2, 
+import {
+  FileText,
+  Star,
+  MoreVertical,
+  Edit,
+  Copy,
+  Trash2,
   Eye,
   Calendar,
   User,
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export function PromptList({ 
   prompts, 
@@ -70,16 +71,23 @@ export function PromptList({
       <div className="p-6">
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-3 w-full mb-2" />
-                <Skeleton className="h-3 w-2/3" />
-              </CardContent>
-            </Card>
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+            >
+              <Card>
+                <CardHeader>
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-3 w-full mb-2" />
+                  <Skeleton className="h-3 w-2/3" />
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
         </div>
       </div>
@@ -127,19 +135,44 @@ export function PromptList({
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {prompts.map(prompt => {
-                const category = getCategoryById(prompt.category_id)
-                const isSelected = selectedPrompt?.id === prompt.id
-                
-                return (
-                  <Card 
-                    key={prompt.id}
-                    className={`cursor-pointer transition-all hover:shadow-md ${
-                      isSelected ? 'ring-2 ring-primary' : ''
-                    }`}
-                    onClick={() => onPromptSelect(prompt)}
-                  >
+            <motion.div
+              className="space-y-4"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: 0.05
+                  }
+                }
+              }}
+            >
+              <AnimatePresence mode="popLayout">
+                {prompts.map((prompt, index) => {
+                  const category = getCategoryById(prompt.category_id)
+                  const isSelected = selectedPrompt?.id === prompt.id
+                  
+                  return (
+                    <motion.div
+                      key={prompt.id}
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 300,
+                        damping: 30,
+                        delay: index * 0.02
+                      }}
+                    >
+                      <Card
+                        clickable
+                        selected={isSelected}
+                        onClick={() => onPromptSelect(prompt)}
+                      >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -263,11 +296,13 @@ export function PromptList({
                           </div>
                         </div>
                       )}
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                  )
+                })}
+              </AnimatePresence>
+            </motion.div>
           )}
         </div>
       </ScrollArea>

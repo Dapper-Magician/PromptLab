@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { Layout } from './components/Layout'
+import { TestingPanel } from './components/TestingPanel'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { PromptList } from './PromptList'
 import { PromptEditor } from './PromptEditor'
+import { TemplateGallery } from './components/TemplateGallery'
+import { TemplateEditor } from './components/TemplateEditor'
 import { TestingWorkbench } from './TestingWorkbench'
 import { CommandPalette } from './CommandPalette'
 import { Analytics } from './Analytics'
@@ -18,6 +22,9 @@ function App() {
   const [prompts, setPrompts] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [templates, setTemplates] = useState([])
+  const [selectedTemplate, setSelectedTemplate] = useState(null)
+  const [templatesLoading, setTemplatesLoading] = useState(false)
 
   // API base URL - use relative path for deployed application
   const API_BASE = '/api'
@@ -26,6 +33,7 @@ function App() {
   useEffect(() => {
     loadPrompts()
     loadCategories()
+    loadTemplates()
   }, [])
 
   const loadPrompts = async () => {
@@ -57,6 +65,23 @@ function App() {
       toast.error(error.message || 'Could not load categories.');
     }
   };
+
+  const loadTemplates = async () => {
+    setTemplatesLoading(true)
+    try {
+      const response = await fetch(`${API_BASE}/templates`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch templates.')
+      }
+      const data = await response.json()
+      setTemplates(data)
+    } catch (error) {
+      console.error('Failed to load templates:', error)
+      toast.error(error.message || 'Could not load templates.')
+    } finally {
+      setTemplatesLoading(false)
+    }
+  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -162,21 +187,159 @@ function App() {
     }
   };
 
+  const handleNewTemplate = () => {
+    const newTemplate = {
+      id: null,
+      name: '',
+      content: '',
+      description: '',
+      category_id: null,
+      variables: []
+    }
+    setSelectedTemplate(newTemplate)
+  }
+
+  const handleTemplateSave = async (templateData) => {
+    const isNew = !templateData.id
+    try {
+      const url = isNew
+        ? `${API_BASE}/templates`
+        : `${API_BASE}/templates/${templateData.id}`
+      
+      const method = isNew ? 'POST' : 'PUT'
+      
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(templateData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }))
+        throw new Error(errorData.message || 'Failed to save template.')
+      }
+
+      const savedTemplate = await response.json()
+      
+      if (isNew) {
+        setTemplates([savedTemplate, ...templates])
+      } else {
+        setTemplates(templates.map(t => t.id === templateData.id ? savedTemplate : t))
+      }
+      
+      setSelectedTemplate(null)
+      toast.success(`Template "${savedTemplate.name}" saved successfully!`)
+      return savedTemplate
+
+    } catch (error) {
+      console.error('Failed to save template:', error)
+      toast.error(error.message || 'An unexpected error occurred.')
+      throw error
+    }
+  }
+
+  const handleTemplateDelete = async (templateId, templateName) => {
+    try {
+      const response = await fetch(`${API_BASE}/templates/${templateId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }))
+        throw new Error(errorData.message || 'Failed to delete template.')
+      }
+
+      setTemplates(templates.filter(t => t.id !== templateId))
+      if (selectedTemplate?.id === templateId) {
+        setSelectedTemplate(null)
+      }
+      toast.success(`Template "${templateName}" deleted.`)
+
+    } catch (error) {
+      console.error('Failed to delete template:', error)
+      toast.error(error.message || 'An unexpected error occurred.')
+    }
+  }
+
+  const handleInstantiateTemplate = async (templateId, data) => {
+    try {
+      const response = await fetch(`${API_BASE}/templates/${templateId}/instantiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }))
+        throw new Error(errorData.message || 'Failed to create prompt from template.')
+      }
+
+      const newPrompt = await response.json()
+      setPrompts([newPrompt, ...prompts])
+      setSelectedPrompt(newPrompt)
+      toast.success(`Prompt "${newPrompt.title}" created from template!`)
+      
+      // Reload templates to update use count
+      loadTemplates()
+      
+      return newPrompt
+
+    } catch (error) {
+      console.error('Failed to instantiate template:', error)
+      toast.error(error.message || 'An unexpected error occurred.')
+      throw error
+    }
+  }
+
+  const handleSaveAsTemplate = async (templateData) => {
+    try {
+      const response = await fetch(`${API_BASE}/templates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(templateData),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred.' }))
+        throw new Error(errorData.message || 'Failed to save as template.')
+      }
+
+      const savedTemplate = await response.json()
+      setTemplates([savedTemplate, ...templates])
+      toast.success(`Template "${savedTemplate.name}" created successfully!`)
+      
+      return savedTemplate
+
+    } catch (error) {
+      console.error('Failed to save as template:', error)
+      toast.error(error.message || 'An unexpected error occurred.')
+      throw error
+    }
+  }
+
   return (
     <Router>
-      <div className="flex h-screen bg-background">
-        {/* Sidebar */}
-        <Sidebar
-          open={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-          prompts={prompts}
-          categories={categories}
-          onPromptSelect={handlePromptSelect}
-          selectedPrompt={selectedPrompt}
-        />
+      <Layout>
+        {/* Sidebar Panel */}
+        <Layout.Sidebar isCollapsed={!sidebarOpen}>
+          <Sidebar
+            open={sidebarOpen}
+            onToggle={() => setSidebarOpen(!sidebarOpen)}
+            prompts={prompts}
+            categories={categories}
+            onPromptSelect={handlePromptSelect}
+            selectedPrompt={selectedPrompt}
+          />
+        </Layout.Sidebar>
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Main Content Panel */}
+        <Layout.Main>
           {/* Header */}
           <Header
             onCommandPaletteOpen={() => setCommandPaletteOpen(true)}
@@ -186,11 +349,11 @@ function App() {
           {/* Content Area */}
           <div className="flex-1 overflow-hidden">
             <Routes>
-              <Route 
-                path="/" 
+              <Route
+                path="/"
                 element={
                   <div className="flex h-full">
-                    <div className="w-1/3 border-r border-border">
+                    <div className="w-1/3 border-r border-[var(--border-primary)]">
                       <PromptList
                         prompts={prompts}
                         categories={categories}
@@ -207,40 +370,67 @@ function App() {
                         categories={categories}
                         onSave={handlePromptSave}
                         onClose={() => setSelectedPrompt(null)}
+                        onSaveAsTemplate={handleSaveAsTemplate}
                       />
                     </div>
                   </div>
-                } 
+                }
               />
-              <Route 
-                path="/testing" 
+              <Route
+                path="/templates"
+                element={
+                  selectedTemplate ? (
+                    <TemplateEditor
+                      template={selectedTemplate}
+                      categories={categories}
+                      onSave={handleTemplateSave}
+                      onClose={() => setSelectedTemplate(null)}
+                    />
+                  ) : (
+                    <TemplateGallery
+                      templates={templates}
+                      categories={categories}
+                      onCreateNew={handleNewTemplate}
+                      onEditTemplate={setSelectedTemplate}
+                      onInstantiateTemplate={handleInstantiateTemplate}
+                    />
+                  )
+                }
+              />
+              <Route
+                path="/testing"
                 element={
                   <TestingWorkbench
                     prompts={prompts}
                     onPromptSelect={handlePromptSelect}
                   />
-                } 
+                }
               />
-              <Route 
-                path="/analytics" 
+              <Route
+                path="/analytics"
                 element={
                   <Analytics
                     prompts={prompts}
                   />
-                } 
+                }
               />
-              <Route 
-                path="/settings" 
+              <Route
+                path="/settings"
                 element={
                   <Settings
                     categories={categories}
                     onCategoriesChange={loadCategories}
                   />
-                } 
+                }
               />
             </Routes>
           </div>
-        </div>
+        </Layout.Main>
+
+        {/* Testing Panel (Right Side) */}
+        <Layout.Panel isVisible={true}>
+          <TestingPanel />
+        </Layout.Panel>
 
         {/* Command Palette */}
         <CommandPalette
@@ -250,7 +440,7 @@ function App() {
           onPromptSelect={handlePromptSelect}
         />
         <Toaster />
-      </div>
+      </Layout>
     </Router>
   )
 }

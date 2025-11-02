@@ -1,13 +1,37 @@
 import * as React from "react"
+import { motion } from "framer-motion"
 
 import { cn } from "@/lib/utils"
 
-const Card = React.forwardRef(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
-    {...props} />
-))
+const Card = React.forwardRef(({ className, clickable = false, selected = false, ...props }, ref) => {
+  const baseClasses = "rounded-lg border bg-card text-card-foreground shadow-sm transition-all duration-200"
+  const interactiveClasses = clickable
+    ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5"
+    : ""
+  const selectedClasses = selected
+    ? "ring-2 ring-primary border-primary"
+    : ""
+  
+  if (clickable) {
+    return (
+      <motion.div
+        ref={ref}
+        className={cn(baseClasses, interactiveClasses, selectedClasses, className)}
+        whileHover={{ y: -2 }}
+        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        {...props}
+      />
+    )
+  }
+  
+  return (
+    <div
+      ref={ref}
+      className={cn(baseClasses, selectedClasses, className)}
+      {...props}
+    />
+  )
+})
 Card.displayName = "Card"
 
 const CardHeader = React.forwardRef(({ className, ...props }, ref) => (

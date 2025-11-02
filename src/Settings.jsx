@@ -7,13 +7,14 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { ShortcutManager } from '@/components/ShortcutManager'
 
 export function Settings({ categories, onCategoriesChange }) {
   const [newCategory, setNewCategory] = useState({ name: '', description: '', color: '#3B82F6' })
@@ -203,17 +204,7 @@ export function Settings({ categories, onCategoriesChange }) {
         </TabsContent>
 
         <TabsContent value="shortcuts">
-          <Card>
-            <CardHeader>
-              <CardTitle>Text Shortcuts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <SettingsIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>Shortcuts configuration coming soon</p>
-              </div>
-            </CardContent>
-          </Card>
+          <ShortcutManager />
         </TabsContent>
 
         <TabsContent value="integrations">

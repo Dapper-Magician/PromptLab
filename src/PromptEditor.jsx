@@ -1,18 +1,21 @@
-import { useState, useEffect } from 'react'
-import { 
-  Save, 
-  X, 
-  Eye, 
-  EyeOff, 
-  Star, 
-  Copy, 
+import { useState, useEffect, useRef } from 'react'
+import {
+  Save,
+  X,
+  Eye,
+  EyeOff,
+  Star,
+  Copy,
   FileText,
   Tag,
   User,
   Calendar,
   Link,
-  Palette
+  Palette,
+  Sparkles,
+  Zap
 } from 'lucide-react'
+import { useShortcutExpansion } from '@/hooks/useShortcutExpansion'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -31,7 +34,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-export function PromptEditor({ prompt, categories, onSave, onClose }) {
+export function PromptEditor({ prompt, categories, onSave, onClose, onSaveAsTemplate }) {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -48,6 +51,16 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
   const [markdownPreview, setMarkdownPreview] = useState(false)
   const [saving, setSaving] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [showSaveAsTemplateDialog, setShowSaveAsTemplateDialog] = useState(false)
+  const [shortcutExpanded, setShortcutExpanded] = useState(false)
+  
+  // Shortcut expansion hook
+  const { expandText, shortcuts } = useShortcutExpansion()
+  
+  // Refs for input elements
+  const titleRef = useRef(null)
+  const contentRef = useRef(null)
+  const descriptionRef = useRef(null)
 
   // Initialize form data when prompt changes
   useEffect(() => {
@@ -75,7 +88,31 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
     }
   }, [prompt])
 
-  const handleInputChange = (field, value) => {
+  const handleInputChange = (field, value, skipShortcutCheck = false) => {
+    // Check for shortcut expansion if not skipped
+    if (!skipShortcutCheck && shortcuts.length > 0) {
+      const element = field === 'title' ? titleRef.current :
+                      field === 'content' ? contentRef.current :
+                      field === 'description' ? descriptionRef.current : null
+      
+      if (element) {
+        const result = expandText(value, element)
+        if (result.expanded) {
+          // Show visual feedback
+          setShortcutExpanded(true)
+          setTimeout(() => setShortcutExpanded(false), 1000)
+          
+          // Update with expanded text
+          setFormData(prev => ({
+            ...prev,
+            [field]: result.newText
+          }))
+          setIsDirty(true)
+          return
+        }
+      }
+    }
+    
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -129,6 +166,30 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
     // TODO: Show toast notification
   }
 
+  const handleSaveAsTemplate = () => {
+    if (!formData.content.trim()) {
+      alert('Content is required to create a template')
+      return
+    }
+    setShowSaveAsTemplateDialog(true)
+  }
+
+  const confirmSaveAsTemplate = async () => {
+    if (onSaveAsTemplate) {
+      try {
+        await onSaveAsTemplate({
+          name: formData.title || 'Untitled Template',
+          content: formData.content,
+          description: formData.description,
+          category_id: formData.category_id
+        })
+        setShowSaveAsTemplateDialog(false)
+      } catch (error) {
+        console.error('Failed to save as template:', error)
+      }
+    }
+  }
+
   const getCategoryById = (categoryId) => {
     return categories.find(cat => cat.id === categoryId)
   }
@@ -170,6 +231,12 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
                 Unsaved changes
               </Badge>
             )}
+            {shortcutExpanded && (
+              <Badge variant="default" className="text-xs animate-pulse">
+                <Zap className="h-3 w-3 mr-1" />
+                Shortcut expanded
+              </Badge>
+            )}
           </div>
           
           <div className="flex items-center space-x-2">
@@ -182,6 +249,18 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
               <Copy className="h-4 w-4 mr-2" />
               Copy
             </Button>
+
+            {onSaveAsTemplate && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveAsTemplate}
+                disabled={!formData.content}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Save as Template
+              </Button>
+            )}
             
             <Button
               variant="outline"
@@ -246,6 +325,7 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
                 <div>
                   <Label htmlFor="title">Title *</Label>
                   <Input
+                    ref={titleRef}
                     id="title"
                     value={formData.title}
                     onChange={(e) => handleInputChange('title', e.target.value)}
@@ -271,6 +351,7 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
                     </Card>
                   ) : (
                     <Textarea
+                      ref={contentRef}
                       id="content"
                       value={formData.content}
                       onChange={(e) => handleInputChange('content', e.target.value)}
@@ -284,6 +365,7 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
                 <div>
                   <Label htmlFor="description">Description</Label>
                   <Textarea
+                    ref={descriptionRef}
                     id="description"
                     value={formData.description}
                     onChange={(e) => handleInputChange('description', e.target.value)}
@@ -469,6 +551,35 @@ export function PromptEditor({ prompt, categories, onSave, onClose }) {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Save as Template Confirmation Dialog */}
+      {showSaveAsTemplateDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background border rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <Sparkles className="h-6 w-6 text-primary" />
+              <h3 className="text-lg font-semibold">Save as Template</h3>
+            </div>
+            <p className="text-muted-foreground mb-6">
+              This will create a new template from the current prompt content.
+              Any text in the format <code className="bg-muted px-1 py-0.5 rounded text-xs">{'{{variable}}'}</code> will
+              be detected as a variable.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowSaveAsTemplateDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={confirmSaveAsTemplate}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Create Template
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
